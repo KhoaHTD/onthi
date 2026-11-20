@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luyện thi VNR202</title>
+<style>
+/* VOICE: utilitarian exam client, exactly like FPT EOS (WinForms)
+   IDEA: the EOS exam window itself
+   PICTURE: the window: header panel, number list, answer checkboxes, text pane
+   COLOUR and TYPE: Windows control grey, EOS blue labels, Microsoft Sans Serif
+   LAYOUT: header grid on top, left rail + big text pane below; stacks on phones */
+:root{color-scheme:light;--face:#f0f0f0;--edge:#a0a0a0;--blue:#0000ff;--navy:#000080;--sel:#3399ff;--ok:#008000;--bad:#d00000}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:#6d7f99;font:13px/1.35 "Microsoft Sans Serif",Tahoma,"Segoe UI",Arial,sans-serif;color:#000;overflow-x:clip}
+.win{max-width:1180px;margin:0 auto;min-height:100%;background:var(--face);display:flex;flex-direction:column;border:1px solid #555}
+.title{background:linear-gradient(#fff,#e9edf3);border-bottom:1px solid #b9c1cc;padding:4px 8px;display:flex;align-items:center;gap:8px;font-size:12px}
+.title b{flex:1;font-weight:normal}
+.title i{width:28px;height:16px;border:1px solid #9aa;display:inline-block;background:#fff}
+.title i:last-child{background:#e04343;border-color:#b22}
+/* header */
+.head{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto;gap:2px 18px;padding:6px 14px 8px;align-items:start}
+.col{display:grid;gap:3px;align-content:start}
+.row{display:flex;align-items:center;gap:6px;white-space:nowrap;min-height:22px}
+.lbl{color:var(--navy)}
+.val{color:var(--blue);font-weight:bold;overflow:hidden;text-overflow:ellipsis}
+.finish{justify-content:center}
+button{font:inherit;background:linear-gradient(#fdfdfd,#e1e1e1);border:1px solid #707070;border-radius:2px;padding:3px 12px;min-height:24px;cursor:pointer;color:#000}
+button:hover:not(:disabled){background:linear-gradient(#eaf6fd,#bee6fd);border-color:#3c7fb1}
+button:disabled{color:#8d8d8d;border-color:#adb2b5;background:#f4f4f4;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,.list:focus-visible{outline:1px dotted #000;outline-offset:1px}
+input[type=text],input[type=number],select{font:inherit;border:1px solid #7a7a7a;background:#fff;height:22px;padding:0 3px}
+input[type=number]{width:46px}
+input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:#2b6ed2}
+.side{display:grid;grid-template-columns:auto;gap:6px;justify-items:center}
+.flag{width:150px;height:62px;border:1px solid #888;background:linear-gradient(#ff9933 0 33.3%,#fff 33.3% 66.6%,#138808 66.6%);position:relative}
+.flag::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px;border:2px solid #000080;border-radius:50%}
+.time{font-size:44px;line-height:1;color:var(--blue);font-weight:bold;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.time.late{color:var(--bad)}
+/* tab + body */
+.tabs{display:flex;align-items:flex-end;gap:10px;padding:0 10px;border-bottom:1px solid var(--edge);flex-wrap:wrap}
+.tab{border:1px solid var(--edge);border-bottom:0;background:#fff;padding:4px 12px;margin-bottom:-1px;font-size:12px}
+.tools{margin-left:auto;display:flex;gap:10px;align-items:center;padding:3px 0;flex-wrap:wrap;font-size:12px}
+.tools label{display:flex;gap:4px;align-items:center}
+.main{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;gap:4px 12px;padding:8px 12px 10px;min-height:420px}
+.qhead{grid-column:2;color:var(--blue);font-weight:bold;font-size:14px}
+.qhead small{color:#555;font-weight:normal;font-size:12px;margin-left:8px}
+.rail{grid-row:1/3;display:grid;grid-template-columns:52px auto;grid-template-rows:1fr auto;gap:8px 12px;padding-top:20px}
+.list{height:max(200px,calc(100vh - 400px));overflow-y:auto;background:#fff;border:1px solid #828790;outline:0}
+.list div{padding:0 4px;cursor:default;font-size:12px;line-height:16px;white-space:nowrap}
+.list div.ok{color:var(--ok)}.list div.bad{color:var(--bad)}
+.list div.on{background:var(--sel);color:#fff}
+.ans{display:grid;align-content:start;gap:14px;padding-top:2px}
+.ans>span{margin-bottom:2px}
+.ans label{display:flex;gap:6px;align-items:center;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:2px}
+.ans label.right{background:#c9f2c9;color:var(--ok);font-weight:bold}
+.ans label.wrong{background:#ffd2d2;color:var(--bad)}
+.btns{grid-column:1/3;display:grid;gap:6px;justify-items:start}
+.btns button{width:120px}
+.pane{border:1px solid #828790;background:#fff;overflow-y:auto;padding:4px 8px 16px;height:max(300px,calc(100vh - 315px))}
+.pane p{margin:0 0 12px}
+.pane .opt{margin:0 0 3px;padding:1px 4px;border-radius:2px;cursor:pointer}
+.pane .opt:hover{background:#eef4fb}
+.pane .opt.right{background:#c9f2c9;color:#005c00;font-weight:bold}
+.pane .opt.wrong{background:#ffd2d2;color:#a00000;text-decoration:line-through}
+.fb{margin-top:14px;font-weight:bold}
+.fb.ok{color:var(--ok)}.fb.bad{color:var(--bad)}
+.note{margin-top:8px;color:#555;font-style:italic;border-left:3px solid #c8c8c8;padding-left:8px}
+.status{border-top:1px solid var(--edge);padding:3px 10px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;color:#333;background:#ececec}
+.status b{color:#000}
+kbd{border:1px solid #999;border-bottom-width:2px;border-radius:2px;padding:0 4px;background:#fff;font:11px Tahoma,sans-serif}
+/* message box */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;padding:16px;z-index:9}
+.mask.show{display:flex}
+.box{background:var(--face);border:1px solid #555;box-shadow:0 6px 24px rgba(0,0,0,.35);width:min(380px,100%)}
+.box .title{border-bottom:1px solid #ccc}
+.box .inner{padding:16px 18px 10px;background:#fff}
+.box .big{font-size:26px;font-weight:bold;color:var(--blue)}
+.box .acts{display:flex;gap:6px;justify-content:flex-end;padding:10px 12px;flex-wrap:wrap}
+@media(max-width:820px){
+  .head{grid-template-columns:minmax(0,1fr) auto}.head .col:nth-child(2){grid-column:1}.side{grid-row:1/3;grid-column:2}
+  .flag{width:96px;height:40px}.time{font-size:32px}
+}
+@media(max-width:600px){
+  body{background:var(--face)}
+  .head{grid-template-columns:minmax(0,1fr);font-size:12px}.side{grid-row:auto;grid-column:auto;grid-template-columns:auto auto;align-items:center}
+  .hide-s{display:none!important}
+  .main{grid-template-columns:minmax(0,1fr);padding:6px}
+  .qhead{grid-column:1}
+  .rail{grid-row:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto;padding-top:0;order:3}
+  .list{display:none}
+  .ans{grid-template-columns:repeat(5,auto);justify-content:start;gap:6px 10px}.ans>span{display:none}
+  .ans label{min-height:40px;padding:0 8px;border:1px solid #bbb;background:#fff}
+  .btns{grid-column:1;grid-template-columns:1fr 1fr}.btns button{width:100%;min-height:40px}
+  .pane{order:2;height:auto;min-height:220px;font-size:15px!important}
+}
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="title"><b>Luyện thi trắc nghiệm — VNR202</b><i></i><i></i></div>
+
+  <div class="head">
+    <div class="col">
+      <div class="row hide-s">&nbsp;</div>
+      <div class="row hide-s"><span class="lbl">Machine:</span><span class="val">DESKTOP-VNR202</span></div>
+      <div class="row hide-s"><span class="lbl">Server:</span><span class="val">VNR202_Quizlet</span></div>
+      <div class="row hide-s"><span class="lbl">Duration:</span><span class="val" id="dur">60 minutes</span></div>
+      <div class="row"><span class="lbl">Q mark:</span><span class="val" id="qmark">0</span></div>
+    </div>
+    <div class="col">
+      <div class="row finish"><label class="row"><input type="checkbox" id="want"> I want to finish the exam.</label><button id="finish" disabled>Finish</button></div>
+      <div class="row hide-s"><span class="lbl">Student:</span><span class="val">student</span></div>
+      <div class="row hide-s"><span class="lbl">Exam Code:</span><span class="val">VNR202</span></div>
+      <div class="row"><span class="lbl">Open Code:</span><input type="text" id="code" inputmode="numeric" placeholder="số câu" style="width:84px"><button id="go" disabled title="Nhảy tới câu (theo số thứ tự trong đề gốc)">Show Question</button></div>
+      <div class="row"><span class="lbl">Total Marks:</span><span class="val" id="total">0</span>
+        <span class="lbl" style="margin-left:14px">Vol:</span><input type="number" id="vol" min="0" max="9" value="0" title="Vol 0 = cả đề; Vol 1–9 = từng phần 50 câu"></div>
+      <div class="row"><span class="lbl">Font:</span>
+        <select id="font"><option>Microsoft Sans Serif</option><option>Tahoma</option><option>Arial</option><option>Times New Roman</option><option>Segoe UI</option></select>
+        <span class="lbl">Size:</span><input type="number" id="size" min="8" max="24" value="11"></div>
+    </div>
+    <div class="side">
+      <div class="flag" aria-hidden="true"></div>
+      <div class="row"><span class="lbl hide-s">Time Left:</span><span class="time" id="time">60:00</span></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab">Multiple Choices</div>
+    <div class="tools">
+      <label>Lọc: <select id="filter"><option value="all">Tất cả</option><option value="todo">Chưa làm</option><option value="wrong">Câu sai</option></select></label>
+      <label><input type="checkbox" id="shuffle"> Trộn câu</label>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="qhead" id="qhead">Question 0/0:</div>
+    <div class="rail">
+      <div class="list" id="list" tabindex="0" aria-label="Danh sách câu"></div>
+      <div class="ans" id="ans"></div>
+      <div class="btns">
+        <button id="prev">Prev Question</button>
+        <button id="next">Next Question</button>
+      </div>
+    </div>
+    <div class="pane" id="pane"><p>Đang tải bộ đề…</p></div>
+  </div>
+
+  <div class="status">
+    <span><kbd>←</kbd> <kbd>→</kbd> chuyển câu</span>
+    <span><kbd>Space</kbd> hiện đáp án</span>
+    <span><kbd>A</kbd>–<kbd>D</kbd> / <kbd>1</kbd>–<kbd>4</kbd> chọn</span>
+    <span>Đúng <b id="sOk">0</b> · Sai <b id="sBad">0</b> · Chưa làm <b id="sTodo">0</b></span>
+  </div>
+</div>
+
+<div class="mask" id="mask"><div class="box" role="dialog" aria-modal="true">
+  <div class="title"><b>Kết quả</b></div>
+  <div class="inner" id="boxBody"></div>
+  <div class="acts">
+    <button id="bWrong">Ôn câu sai</button><button id="bReset">Làm lại từ đầu</button><button id="bOk">OK</button>
+  </div>
+</div></div>
+
+<script src="questions.js"></script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const L = 'abcde';
+const KEY = 'eos-vnr202-v1';
+let Q = [], byId = {}, order = [], pos = 0, state = {}, reveal = false, pick = [], live = null;
+let prefs = {vol:0, filter:'all', shuffle:false, font:'Microsoft Sans Serif', size:11, cur:null, seed:1};
+let left = 3600, timer = null;
+
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify({state, prefs})); } catch(e){} };
+const load = () => { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { state = o.state || {}; Object.assign(prefs, o.prefs || {}); } } catch(e){} };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function rand(seed){ return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+function build(keepId){
+  let ids = Q.map(q => q.id);
+  if (prefs.vol > 0) ids = ids.slice((prefs.vol - 1) * 50, prefs.vol * 50);
+  if (prefs.filter === 'todo') ids = ids.filter(i => !state[i]);
+  if (prefs.filter === 'wrong') ids = ids.filter(i => state[i] && !state[i].ok);
+  if (prefs.shuffle) { const r = rand(prefs.seed); for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; } }
+  order = ids; live = null; pick = []; reveal = false;
+  const k = order.indexOf(keepId);
+  pos = k >= 0 ? k : 0;
+  renderList(); show();
+}
+
+function renderList(){
+  $('list').innerHTML = order.map((id, i) => {
+    const s = state[id];
+    return `<div data-i="${i}" title="Câu ${id} trong đề" class="${s ? (s.ok ? 'ok' : 'bad') : ''}${i === pos ? ' on' : ''}">${i + 1}</div>`;
+  }).join('');
+  $('total').textContent = order.length;
+  stats();
+}
+
+function stats(){
+  let ok = 0, bad = 0;
+  for (const q of Q) { const s = state[q.id]; if (s) s.ok ? ok++ : bad++; }
+  $('sOk').textContent = ok; $('sBad').textContent = bad; $('sTodo').textContent = Q.length - ok - bad;
+  $('qmark').textContent = order.filter(i => state[i] && state[i].ok).length;
+}
+
+function show(){
+  const pane = $('pane');
+  pane.style.fontFamily = `"${prefs.font}", Tahoma, Arial, sans-serif`;
+  pane.style.fontSize = prefs.size + 'pt';
+  if (!order.length) {
+    $('qhead').innerHTML = 'Question 0/0:';
+    $('ans').innerHTML = '';
+    pane.innerHTML = `<p>Không còn câu nào trong mục này${prefs.filter === 'wrong' ? ' — bạn chưa sai câu nào' : ''}.</p>`;
+    return;
+  }
+  const q = byId[order[pos]], s = live, n = q.ans.length;
+  prefs.cur = q.id;
+  const done = !!s, sel = s ? s.sel : pick;
+  const mark = k => {
+    const isAns = q.ans.includes(L[k]), chosen = sel.includes(L[k]);
+    if (done || reveal) { if (isAns) return 'right'; if (done && chosen) return 'wrong'; }
+    return '';
+  };
+  $('qhead').innerHTML = `Question ${pos + 1}/${order.length}:<small>câu ${q.id} trong đề${n > 1 ? ` · chọn ${n} đáp án` : ''}</small>`;
+  $('ans').innerHTML = '<span>Answer</span>' + q.opts.map((_, k) =>
+    `<label class="${mark(k)}"><input type="checkbox" data-k="${k}" ${sel.includes(L[k]) ? 'checked' : ''} ${done ? 'disabled' : ''}> ${L[k].toUpperCase()}</label>`).join('');
+  let h = `<p>Chọn đáp án đúng nhất${n > 1 ? ` (chọn ${n})` : ''}.</p><p>${esc(q.q)}</p>`;
+  h += q.opts.map((o, k) => `<div class="opt ${mark(k)}" data-k="${k}">${L[k].toUpperCase()}. ${esc(o)}</div>`).join('');
+  const right = q.ans.toUpperCase().split('').join(', ');
+  if (!done && reveal) h += `<div class="fb ok">Đáp án: ${right}</div>`;
+  if ((done || reveal) && q.note) h += `<div class="note">${esc(q.note)}</div>`;
+  pane.innerHTML = h;
+  pane.scrollTop = 0;
+  const on = $('list').querySelector('.on'); if (on) on.classList.remove('on');
+  const cur = $('list').children[pos]; if (cur) { cur.classList.add('on'); cur.scrollIntoView({block:'nearest'}); }
+  $('prev').disabled = pos === 0; $('next').disabled = pos >= order.length - 1;
+  save();
+}
+
+function choose(k){
+  if (!order.length) return;
+  const q = byId[order[pos]];
+  if (live || k >= q.opts.length) return;
+  const c = L[k];
+  pick = pick.includes(c) ? pick.filter(x => x !== c) : [...pick, c];
+  if (pick.length >= q.ans.length) {
+    const sel = pick.slice().sort().join('');
+    state[q.id] = live = {sel, ok: sel === q.ans};
+    pick = [];
+    const cell = $('list').children[pos]; if (cell) { cell.classList.remove('ok', 'bad'); cell.classList.add(live.ok ? 'ok' : 'bad'); }
+    stats();
+  }
+  show();
+}
+
+function go(d){
+  const p = Math.max(0, Math.min(order.length - 1, pos + d));
+  if (p !== pos) { pos = p; reveal = false; pick = []; live = null; show(); }
+}
+
+function tick(){
+  left = Math.max(0, left - 1);
+  const t = $('time');
+  t.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0');
+  t.classList.toggle('late', left < 300);
+}
+
+function result(){
+  const ids = order.length ? order : Q.map(q => q.id);
+  const ok = ids.filter(i => state[i] && state[i].ok).length, bad = ids.filter(i => state[i] && !state[i].ok).length;
+  const pct = ids.length ? Math.round(ok / ids.length * 1000) / 10 : 0;
+  $('boxBody').innerHTML = `<div>Kết quả phần đang làm (${ids.length} câu):</div><div class="big">${ok}/${ids.length} · ${pct}%</div><div>Đúng ${ok} · Sai ${bad} · Chưa làm ${ids.length - ok - bad}</div>`;
+  $('mask').classList.add('show'); $('bOk').focus();
+}
+const closeBox = () => { $('mask').classList.remove('show'); $('want').checked = false; $('finish').disabled = true; };
+
+// events
+$('list').addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) { pos = +d.dataset.i; reveal = false; pick = []; live = null; show(); } });
+$('ans').addEventListener('click', e => { const i = e.target.closest('input[data-k]'); if (i) { e.preventDefault(); choose(+i.dataset.k); } });
+$('pane').addEventListener('click', e => { const o = e.target.closest('.opt'); if (o) choose(+o.dataset.k); });
+document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTimeout(() => b.blur(), 0); });
+$('prev').onclick = () => go(-1);
+$('next').onclick = () => go(1);
+$('want').onchange = e => $('finish').disabled = !e.target.checked;
+$('finish').onclick = result;
+$('bOk').onclick = closeBox;
+$('bReset').onclick = () => { const ids = new Set(order); for (const k in state) if (ids.has(+k)) delete state[k]; left = 3600; prefs.seed = Date.now() % 2147483646 + 1; closeBox(); build(null); };
+$('bWrong').onclick = () => { closeBox(); prefs.filter = 'wrong'; $('filter').value = 'wrong'; build(null); };
+$('code').oninput = e => $('go').disabled = !e.target.value.trim();
+const jump = () => {
+  const id = parseInt($('code').value, 10); if (!byId[id]) { $('code').value = ''; $('go').disabled = true; return; }
+  if (!order.includes(id)) { prefs.vol = 0; prefs.filter = 'all'; $('vol').value = 0; $('filter').value = 'all'; build(id); }
+  else { pos = order.indexOf(id); reveal = false; pick = []; live = null; show(); }
+  $('code').value = ''; $('go').disabled = true; $('code').blur();
+};
+$('go').onclick = jump;
+$('code').onkeydown = e => { if (e.key === 'Enter') jump(); };
+$('vol').onchange = e => { prefs.vol = Math.max(0, Math.min(9, +e.target.value || 0)); e.target.value = prefs.vol; build(null); };
+$('filter').onchange = e => { prefs.filter = e.target.value; build(prefs.cur); };
+$('shuffle').onchange = e => { prefs.shuffle = e.target.checked; prefs.seed = Date.now() % 2147483646 + 1; build(prefs.cur); };
+$('font').onchange = e => { prefs.font = e.target.value; show(); };
+$('size').onchange = e => { prefs.size = Math.max(8, Math.min(24, +e.target.value || 11)); e.target.value = prefs.size; show(); };
+
+document.addEventListener('keydown', e => {
+  if ($('mask').classList.contains('show')) { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); closeBox(); } return; }
+  const t = e.target.tagName;
+  if (t === 'INPUT' && e.target.type !== 'checkbox' || t === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k === 'ArrowRight' || k === 'ArrowDown') { e.preventDefault(); go(1); }
+  else if (k === 'ArrowLeft' || k === 'ArrowUp') { e.preventDefault(); go(-1); }
+  else if (k === ' ' || k === 'Spacebar') { e.preventDefault(); reveal = !reveal; show(); }
+  else if (/^[1-5]$/.test(k)) { e.preventDefault(); choose(+k - 1); }
+  else if (/^[a-eA-E]$/.test(k)) { e.preventDefault(); choose(L.indexOf(k.toLowerCase())); }
+});
+
+load();
+$('vol').value = prefs.vol; $('filter').value = prefs.filter; $('shuffle').checked = prefs.shuffle;
+$('font').value = prefs.font; $('size').value = prefs.size;
+(window.QUESTIONS ? Promise.resolve(window.QUESTIONS) : fetch('questions.json').then(r => r.json())).then(d => {
+  Q = d.map(([id, q, opts, ans, note]) => ({id, q, opts, ans, note}));
+  Q.forEach(q => byId[q.id] = q);
+  build(prefs.cur);
+  timer = setInterval(tick, 1000);
+}).catch(() => { $('pane').innerHTML = '<p>Không tải được bộ đề. Hãy mở lại trang.</p>'; });
+}
+</script>
+</body>
+</html>
