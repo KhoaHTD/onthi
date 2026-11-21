@@ -30,7 +30,7 @@ button{font:inherit;background:linear-gradient(#fdfdfd,#e1e1e1);border:1px solid
 button:hover:not(:disabled){background:linear-gradient(#eaf6fd,#bee6fd);border-color:#3c7fb1}
 button:disabled{color:#8d8d8d;border-color:#adb2b5;background:#f4f4f4;cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible,.list:focus-visible{outline:1px dotted #000;outline-offset:1px}
-input[type=text],input[type=number],select{font:inherit;border:1px solid #7a7a7a;background:#fff;height:22px;padding:0 3px}
+input[type=text],input[type=number],input[type=search],select{font:inherit;border:1px solid #7a7a7a;background:#fff;height:22px;padding:0 3px}
 input[type=number]{width:46px}
 input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:#2b6ed2}
 .side{display:grid;grid-template-columns:auto;gap:6px;justify-items:center}
@@ -129,6 +129,7 @@ kbd{border:1px solid #999;border-bottom-width:2px;border-radius:2px;padding:0 4p
   <div class="tabs">
     <div class="tab">Multiple Choices</div>
     <div class="tools">
+      <label>Tìm: <input type="search" id="search" placeholder="từ khoá trong câu hỏi…" title="Tìm theo nội dung câu hỏi và đáp án (gõ không dấu cũng được). Phím tắt: /" style="width:190px"></label>
       <label>Lọc: <select id="filter"><option value="all">Tất cả</option><option value="todo">Chưa làm</option><option value="wrong">Câu sai</option></select></label>
       <label><input type="checkbox" id="shuffle"> Trộn câu</label>
     </div>
@@ -150,6 +151,7 @@ kbd{border:1px solid #999;border-bottom-width:2px;border-radius:2px;padding:0 4p
   <div class="status">
     <span><kbd>←</kbd> <kbd>→</kbd> chuyển câu</span>
     <span><kbd>Space</kbd> hiện đáp án</span>
+    <span><kbd>/</kbd> tìm</span>
     <span><kbd>A</kbd>–<kbd>D</kbd> / <kbd>1</kbd>–<kbd>4</kbd> chọn</span>
     <span>Đúng <b id="sOk">0</b> · Sai <b id="sBad">0</b> · Chưa làm <b id="sTodo">0</b></span>
   </div>
@@ -178,7 +180,9 @@ const DEF = {vol:0, filter:'all', shuffle:false, font:'Microsoft Sans Serif', si
 let subj = null, KEY = '';
 let Q = [], byId = {}, order = [], pos = 0, state = {}, reveal = false, pick = [], live = null;
 let prefs = {...DEF};
-let left = 3600;
+let left = 3600, query = '', searchT = null;
+// chữ thường, bỏ dấu tiếng Việt, gộp khoảng trắng — để gõ "chinh phu" vẫn khớp "Chính phủ"
+const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
 
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({state, prefs})); } catch(e){} };
 const load = () => { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { state = o.state || {}; Object.assign(prefs, o.prefs || {}); } } catch(e){} };
@@ -191,6 +195,8 @@ function build(keepId){
   if (prefs.vol > 0) ids = ids.slice((prefs.vol - 1) * 50, prefs.vol * 50);
   if (prefs.filter === 'todo') ids = ids.filter(i => !state[i]);
   if (prefs.filter === 'wrong') ids = ids.filter(i => state[i] && !state[i].ok);
+  const words = norm(query).split(' ').filter(Boolean);
+  if (words.length) ids = ids.filter(i => words.every(w => byId[i].hay.includes(w)));
   if (prefs.shuffle) { const r = rand(prefs.seed); for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; } }
   order = ids; live = null; pick = []; reveal = false;
   const k = order.indexOf(keepId);
@@ -221,7 +227,9 @@ function show(){
   if (!order.length) {
     $('qhead').innerHTML = 'Question 0/0:';
     $('ans').innerHTML = '';
-    pane.innerHTML = `<p>Không còn câu nào trong mục này${prefs.filter === 'wrong' ? ' — bạn chưa sai câu nào' : ''}.</p>`;
+    pane.innerHTML = query.trim()
+      ? `<p>Không tìm thấy câu nào khớp “${esc(query.trim())}”${prefs.vol || prefs.filter !== 'all' ? ' (đang lọc theo Vol / Lọc — thử đặt Vol 0, Lọc: Tất cả)' : ''}.</p>`
+      : `<p>Không còn câu nào trong mục này${prefs.filter === 'wrong' ? ' — bạn chưa sai câu nào' : ''}.</p>`;
     return;
   }
   const q = byId[order[pos]], s = live, n = q.ans.length;
@@ -303,7 +311,7 @@ $('bWrong').onclick = () => { closeBox(); prefs.filter = 'wrong'; $('filter').va
 $('code').oninput = e => $('go').disabled = !e.target.value.trim();
 const jump = () => {
   const id = parseInt($('code').value, 10); if (!byId[id]) { $('code').value = ''; $('go').disabled = true; return; }
-  if (!order.includes(id)) { prefs.vol = 0; prefs.filter = 'all'; $('vol').value = 0; $('filter').value = 'all'; build(id); }
+  if (!order.includes(id)) { prefs.vol = 0; prefs.filter = 'all'; query = ''; $('vol').value = 0; $('filter').value = 'all'; $('search').value = ''; build(id); }
   else { pos = order.indexOf(id); reveal = false; pick = []; live = null; show(); }
   $('code').value = ''; $('go').disabled = true; $('code').blur();
 };
@@ -311,6 +319,11 @@ $('go').onclick = jump;
 $('code').onkeydown = e => { if (e.key === 'Enter') jump(); };
 $('vol').onchange = e => { prefs.vol = Math.max(0, Math.min(+e.target.max || 9, +e.target.value || 0)); e.target.value = prefs.vol; build(null); };
 $('subject').onchange = e => { openSubject(e.target.value); e.target.blur(); };
+$('search').oninput = e => { clearTimeout(searchT); searchT = setTimeout(() => { query = e.target.value; build(prefs.cur); }, 150); };
+$('search').onkeydown = e => {
+  if (e.key === 'Escape') { e.preventDefault(); if (e.target.value) { e.target.value = ''; clearTimeout(searchT); query = ''; build(prefs.cur); } else e.target.blur(); }
+  else if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchT); query = e.target.value; build(prefs.cur); e.target.blur(); }
+};
 $('filter').onchange = e => { prefs.filter = e.target.value; build(prefs.cur); };
 $('shuffle').onchange = e => { prefs.shuffle = e.target.checked; prefs.seed = Date.now() % 2147483646 + 1; build(prefs.cur); };
 $('font').onchange = e => { prefs.font = e.target.value; show(); };
@@ -322,6 +335,7 @@ document.addEventListener('keydown', e => {
   if (t === 'INPUT' && e.target.type !== 'checkbox' || t === 'SELECT') return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
+  if (k === '/') { e.preventDefault(); $('search').focus(); $('search').select(); return; }
   if (k === 'ArrowRight' || k === 'ArrowDown') { e.preventDefault(); go(1); }
   else if (k === 'ArrowLeft' || k === 'ArrowUp') { e.preventDefault(); go(-1); }
   else if (k === ' ' || k === 'Spacebar') { e.preventDefault(); reveal = !reveal; show(); }
@@ -353,7 +367,7 @@ function openSubject(code){
   $('wtitle').textContent = 'Luyện thi trắc nghiệm — ' + s.code;
   $('machine').textContent = 'DESKTOP-' + s.code;
   $('exam').textContent = s.code;
-  Q = []; byId = {}; order = []; state = {}; prefs = {...DEF};
+  Q = []; byId = {}; order = []; state = {}; prefs = {...DEF}; query = ''; $('search').value = '';
   load();
   $('filter').value = prefs.filter; $('shuffle').checked = prefs.shuffle;
   $('font').value = prefs.font; $('size').value = prefs.size;
@@ -363,7 +377,7 @@ function openSubject(code){
   loadBank(s).then(d => {
     if (subj !== s) return;
     Q = d.map(([id, q, opts, ans, note]) => ({id, q, opts, ans, note}));
-    Q.forEach(q => byId[q.id] = q);
+    Q.forEach(q => { byId[q.id] = q; q.hay = norm(q.q + ' ' + q.opts.join(' ')); });
     const vmax = Math.ceil(Q.length / 50);
     $('vol').max = vmax;
     if (prefs.vol > vmax) prefs.vol = 0;
