@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Luyện thi VNR202</title>
+<title>Luyện thi trắc nghiệm</title>
 <style>
 /* VOICE: utilitarian exam client, exactly like FPT EOS (WinForms)
    IDEA: the EOS exam window itself
@@ -34,8 +34,8 @@ input[type=text],input[type=number],select{font:inherit;border:1px solid #7a7a7a
 input[type=number]{width:46px}
 input[type=checkbox]{width:14px;height:14px;margin:0;accent-color:#2b6ed2}
 .side{display:grid;grid-template-columns:auto;gap:6px;justify-items:center}
-.flag{width:150px;height:62px;border:1px solid #888;background:linear-gradient(#ff9933 0 33.3%,#fff 33.3% 66.6%,#138808 66.6%);position:relative}
-.flag::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px;border:2px solid #000080;border-radius:50%}
+.flag{width:150px;height:62px;border:1px solid #888;background:#da251d;position:relative}
+.flag::after{content:"";position:absolute;left:50%;top:50%;height:62%;aspect-ratio:1;transform:translate(-50%,-50%);background:#ff0;clip-path:polygon(50% 0,61.8% 34.5%,97.6% 34.5%,68.5% 55.9%,79.4% 90.5%,50% 69.1%,20.6% 90.5%,31.5% 55.9%,2.4% 34.5%,38.2% 34.5%)}
 .time{font-size:44px;line-height:1;color:var(--blue);font-weight:bold;letter-spacing:1px;font-variant-numeric:tabular-nums}
 .time.late{color:var(--bad)}
 /* tab + body */
@@ -99,20 +99,20 @@ kbd{border:1px solid #999;border-bottom-width:2px;border-radius:2px;padding:0 4p
 </head>
 <body>
 <div class="win">
-  <div class="title"><b>Luyện thi trắc nghiệm — VNR202</b><i></i><i></i></div>
+  <div class="title"><b id="wtitle">Luyện thi trắc nghiệm</b><i></i><i></i></div>
 
   <div class="head">
     <div class="col">
       <div class="row hide-s">&nbsp;</div>
-      <div class="row hide-s"><span class="lbl">Machine:</span><span class="val">DESKTOP-VNR202</span></div>
-      <div class="row hide-s"><span class="lbl">Server:</span><span class="val">VNR202_Quizlet</span></div>
+      <div class="row hide-s"><span class="lbl">Machine:</span><span class="val" id="machine">DESKTOP</span></div>
+      <div class="row"><label class="lbl" for="subject">Server:</label><select id="subject" title="Chọn bộ đề (môn học)"></select></div>
       <div class="row hide-s"><span class="lbl">Duration:</span><span class="val" id="dur">60 minutes</span></div>
       <div class="row"><span class="lbl">Q mark:</span><span class="val" id="qmark">0</span></div>
     </div>
     <div class="col">
       <div class="row finish"><label class="row"><input type="checkbox" id="want"> I want to finish the exam.</label><button id="finish" disabled>Finish</button></div>
       <div class="row hide-s"><span class="lbl">Student:</span><span class="val">student</span></div>
-      <div class="row hide-s"><span class="lbl">Exam Code:</span><span class="val">VNR202</span></div>
+      <div class="row hide-s"><span class="lbl">Exam Code:</span><span class="val" id="exam"></span></div>
       <div class="row"><span class="lbl">Open Code:</span><input type="text" id="code" inputmode="numeric" placeholder="số câu" style="width:84px"><button id="go" disabled title="Nhảy tới câu (theo số thứ tự trong đề gốc)">Show Question</button></div>
       <div class="row"><span class="lbl">Total Marks:</span><span class="val" id="total">0</span>
         <span class="lbl" style="margin-left:14px">Vol:</span><input type="number" id="vol" min="0" max="9" value="0" title="Vol 0 = cả đề; Vol 1–9 = từng phần 50 câu"></div>
@@ -163,15 +163,22 @@ kbd{border:1px solid #999;border-bottom-width:2px;border-radius:2px;padding:0 4p
   </div>
 </div></div>
 
-<script src="questions.js"></script>
+<script>
+// Danh sách bộ đề. Thêm môn mới: tạo data/<MÃ>.js (xem tools/apkg_to_js.ps1) rồi thêm một dòng ở đây.
+const SUBJECTS = [
+  {code: 'VNR202', name: 'Lịch sử Đảng', file: 'data/VNR202.js'},
+  {code: 'PRM393', name: 'Flutter', file: 'data/PRM393.js'},
+];
+</script>
 <script>
 {
 const $ = id => document.getElementById(id);
 const L = 'abcde';
-const KEY = 'eos-vnr202-v1';
+const DEF = {vol:0, filter:'all', shuffle:false, font:'Microsoft Sans Serif', size:11, cur:null, seed:1};
+let subj = null, KEY = '';
 let Q = [], byId = {}, order = [], pos = 0, state = {}, reveal = false, pick = [], live = null;
-let prefs = {vol:0, filter:'all', shuffle:false, font:'Microsoft Sans Serif', size:11, cur:null, seed:1};
-let left = 3600, timer = null;
+let prefs = {...DEF};
+let left = 3600;
 
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({state, prefs})); } catch(e){} };
 const load = () => { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { state = o.state || {}; Object.assign(prefs, o.prefs || {}); } } catch(e){} };
@@ -264,6 +271,9 @@ function go(d){
 
 function tick(){
   left = Math.max(0, left - 1);
+  drawTime();
+}
+function drawTime(){
   const t = $('time');
   t.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0');
   t.classList.toggle('late', left < 300);
@@ -299,7 +309,8 @@ const jump = () => {
 };
 $('go').onclick = jump;
 $('code').onkeydown = e => { if (e.key === 'Enter') jump(); };
-$('vol').onchange = e => { prefs.vol = Math.max(0, Math.min(9, +e.target.value || 0)); e.target.value = prefs.vol; build(null); };
+$('vol').onchange = e => { prefs.vol = Math.max(0, Math.min(+e.target.max || 9, +e.target.value || 0)); e.target.value = prefs.vol; build(null); };
+$('subject').onchange = e => { openSubject(e.target.value); e.target.blur(); };
 $('filter').onchange = e => { prefs.filter = e.target.value; build(prefs.cur); };
 $('shuffle').onchange = e => { prefs.shuffle = e.target.checked; prefs.seed = Date.now() % 2147483646 + 1; build(prefs.cur); };
 $('font').onchange = e => { prefs.font = e.target.value; show(); };
@@ -318,15 +329,53 @@ document.addEventListener('keydown', e => {
   else if (/^[a-eA-E]$/.test(k)) { e.preventDefault(); choose(L.indexOf(k.toLowerCase())); }
 });
 
-load();
-$('vol').value = prefs.vol; $('filter').value = prefs.filter; $('shuffle').checked = prefs.shuffle;
-$('font').value = prefs.font; $('size').value = prefs.size;
-(window.QUESTIONS ? Promise.resolve(window.QUESTIONS) : fetch('questions.json').then(r => r.json())).then(d => {
-  Q = d.map(([id, q, opts, ans, note]) => ({id, q, opts, ans, note}));
-  Q.forEach(q => byId[q.id] = q);
-  build(prefs.cur);
-  timer = setInterval(tick, 1000);
-}).catch(() => { $('pane').innerHTML = '<p>Không tải được bộ đề. Hãy mở lại trang.</p>'; });
+// Nạp file bộ đề bằng thẻ <script> (chạy được cả khi mở index.html trực tiếp, không cần server)
+function loadBank(s){
+  const have = () => window.BANKS && window.BANKS[s.code];
+  if (have()) return Promise.resolve(have());
+  return new Promise((ok, no) => {
+    const el = document.createElement('script');
+    el.src = s.file;
+    el.onload = () => have() ? ok(have()) : no();
+    el.onerror = no;
+    document.head.appendChild(el);
+  });
+}
+
+function openSubject(code){
+  const s = SUBJECTS.find(x => x.code === code) || SUBJECTS[0];
+  if (subj === s) return;
+  if (subj && Q.length) save();
+  subj = s; KEY = 'eos-' + s.code.toLowerCase() + '-v1';
+  try { localStorage.setItem('eos-subject', s.code); } catch(e){}
+  $('subject').value = s.code;
+  document.title = 'Luyện thi ' + s.code;
+  $('wtitle').textContent = 'Luyện thi trắc nghiệm — ' + s.code;
+  $('machine').textContent = 'DESKTOP-' + s.code;
+  $('exam').textContent = s.code;
+  Q = []; byId = {}; order = []; state = {}; prefs = {...DEF};
+  load();
+  $('filter').value = prefs.filter; $('shuffle').checked = prefs.shuffle;
+  $('font').value = prefs.font; $('size').value = prefs.size;
+  $('list').innerHTML = ''; $('ans').innerHTML = ''; $('qhead').innerHTML = 'Question 0/0:';
+  $('pane').innerHTML = '<p>Đang tải bộ đề…</p>';
+  left = 3600; drawTime();
+  loadBank(s).then(d => {
+    if (subj !== s) return;
+    Q = d.map(([id, q, opts, ans, note]) => ({id, q, opts, ans, note}));
+    Q.forEach(q => byId[q.id] = q);
+    const vmax = Math.ceil(Q.length / 50);
+    $('vol').max = vmax;
+    if (prefs.vol > vmax) prefs.vol = 0;
+    $('vol').value = prefs.vol;
+    build(prefs.cur);
+  }).catch(() => { if (subj === s) $('pane').innerHTML = '<p>Không tải được bộ đề. Hãy mở lại trang.</p>'; });
+}
+
+$('subject').innerHTML = SUBJECTS.map(s => `<option value="${esc(s.code)}">${esc(s.code)}${s.name ? ' · ' + esc(s.name) : ''}</option>`).join('');
+let last = null; try { last = localStorage.getItem('eos-subject'); } catch(e){}
+openSubject(last);
+setInterval(tick, 1000);
 }
 </script>
 </body>
